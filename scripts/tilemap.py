@@ -17,6 +17,7 @@ AUTOTILE_MAP = {
 NEIGHBOR_OFFSETS = [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (0, 0), (-1, 1), (0, 1), (1, 1)]
 PHYSICS_TILES = {'grass', 'stone'}
 AUTOTILE_TYPES = {'grass', 'stone'}
+TRAP_TILES = {'traps'}
 
 class Tilemap:
     def __init__(self, game, tile_size=16):
@@ -78,6 +79,13 @@ class Tilemap:
         rects = []
         for tile in self.tiles_around(pos):
             if tile['type'] in PHYSICS_TILES:
+                rects.append(pygame.Rect(tile['pos'][0] * self.tile_size, tile['pos'][1] * self.tile_size, self.tile_size, self.tile_size))
+        return rects
+    
+    def traps_rects_around(self, pos):
+        rects = []
+        for tile in self.tiles_around(pos):
+            if tile['type'] in TRAP_TILES:
                 rects.append(pygame.Rect(tile['pos'][0] * self.tile_size, tile['pos'][1] * self.tile_size, self.tile_size, self.tile_size))
         return rects
     
