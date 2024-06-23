@@ -1,6 +1,7 @@
 import json
 
 import pygame
+from enum import Enum
 
 AUTOTILE_MAP = {
     tuple(sorted([(1, 0), (0, 1)])): 0,
@@ -18,6 +19,7 @@ NEIGHBOR_OFFSETS = [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (0, 0), (-1, 1)
 PHYSICS_TILES = {'grass', 'stone'}
 AUTOTILE_TYPES = {'grass', 'stone'}
 TRAP_TILES = {'traps'}
+
 
 class Tilemap:
     def __init__(self, game, tile_size=16):
@@ -88,6 +90,7 @@ class Tilemap:
             if tile['type'] in TRAP_TILES:
                 rects.append(pygame.Rect(tile['pos'][0] * self.tile_size, tile['pos'][1] * self.tile_size, self.tile_size, self.tile_size))
         return rects
+    
     
     def autotile(self):
         for loc in self.tilemap:

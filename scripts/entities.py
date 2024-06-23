@@ -296,7 +296,8 @@ class Spirit(PhysicsEntity):
                 self.pos[1] += movement[1] #* (dis[1]/abs(dis[1]))
         
         
-            self.set_action('idle')
+        self.set_action('idle')
+        self.animation.update()
 
         if abs(self.game.player.dashing) >= 50:
             if self.rect().colliderect(self.game.player.rect()):
@@ -315,17 +316,71 @@ class Spirit(PhysicsEntity):
         
     def render(self, surf, offset=(0, 0)):
         super().render(surf, offset)       
-        
-        
 
+class Abilities:
+    
+    def __init__(self, game):
+        self.game = game
+        
+        self.double_jump_unlocked = False
+        self.dash_unlocked = False
+        self.wall_slide_unlocked = False
+        self.wall_jump_unlocked = False
+        self.time_stop_unlocked = False
+        
+        self.double_jump_level = -1
+        self.dash_level = -1
+        self.wall_slide_level = -1
+        self.wall_jump_level = -1
+        self.time_stop_level = -1
+    
+    def set_double_jump_unlocked(self):
+        self.double_jump_unlocked = True
+        self.double_jump_level = self.game.level
+        
+    def set_dash_unlocked(self):
+        self.dash_unlocked = True
+        self.dash_level = self.game.level
+        
+    def set_wall_slide_unlocked(self):
+        self.wall_slide_unlocked = True
+        self.wall_slide_level = self.game.level
+        
+    def set_wall_jump_unlocked(self):
+        self.wall_jump_unlocked = True
+        self.wall_jump_level = self.game.level
+        
+    def set_time_stop_unlocked(self):
+        self.time_stop_unlocked = True
+        self.time_stop_level = self.game.level
+    
+    def reload(self):
+        
+        if self.time_stop_level == self.game.level:
+            self.time_stop_unlocked = False
+        
+        if self.double_jump_level == self.game.level:
+            self.double_jump_unlocked = False
+            
+        if self.dash_level == self.game.level:
+            self.dash_unlocked = False
+        
+        if self.wall_jump_level == self.game.level:
+            self.wall_jump_unlocked =False
+            
+        if self.wall_slide_level == self.game.level:
+            self.wall_slide_unlocked = False
+        
+           
 
 class Player(PhysicsEntity):
     def __init__(self, game, pos, size):
         super().__init__(game, 'player', pos, size)
         self.air_time = 0
-        self.jumps = 2
+        self.jumps = 1
         self.wall_slide = False
         self.dashing = 0
+        self.abilities = Abilities(game)
     
     def update(self, tilemap, movement=(0, 0)):
         super().update(tilemap, movement=movement)
@@ -338,21 +393,24 @@ class Player(PhysicsEntity):
         for rect in tilemap.traps_rects_around(self.pos):
             if self.rect().colliderect(rect):
                 self.game.hit = True
+                
+          
 
         self.air_time += 1
         if self.collisions['down']:
             self.air_time = 0
-            self.jumps = 2
+            self.jumps = 1 + self.abilities.double_jump_unlocked
             
         self.wall_slide = False
-        if (self.collisions['right'] or self.collisions['left']) and self.air_time > 4:
-            self.wall_slide = True
-            self.velocity[1] = min(self.velocity[1], 0.5)
-            if self.collisions['right']:
-                self.flip = False
-            else:
-                self.flip = True
-            self.set_action('wall_slide')
+        if self.abilities.wall_slide_unlocked:
+            if (self.collisions['right'] or self.collisions['left']) and self.air_time > 4:
+                self.wall_slide = True
+                self.velocity[1] = min(self.velocity[1], 0.5)
+                if self.collisions['right']:
+                    self.flip = False
+                else:
+                    self.flip = True
+                self.set_action('wall_slide')
         
         if not self.wall_slide:
             if self.air_time > 4:
@@ -384,7 +442,6 @@ class Player(PhysicsEntity):
         else:
             self.velocity[0] = min(self.velocity[0] + 0.1, 0)
 
-      
     
     def render(self, surf, offset=(0, 0)):
         if abs(self.dashing) <= 50:
@@ -392,18 +449,19 @@ class Player(PhysicsEntity):
             
     def jump(self):
         if self.wall_slide:
-            if self.flip and self.last_movement[0] < 0:
-                self.velocity[0] = 3.5
-                self.velocity[1] = -2.5
-                self.air_time = 5
-                self.jumps = max(0, self.jumps - 1)
-                return True
-            elif not self.flip and self.last_movement[0] > 0:
-                self.velocity[0] = -3.5
-                self.velocity[1] = -2.5
-                self.air_time = 5
-                self.jumps = max(0, self.jumps - 1)
-                return True
+            if self.abilities.wall_jump_unlocked:
+                if self.flip and self.last_movement[0] < 0:
+                    self.velocity[0] = 3.5
+                    self.velocity[1] = -2.5
+                    self.air_time = 5
+                    self.jumps = max(0, self.jumps - 1)
+                    return True
+                elif not self.flip and self.last_movement[0] > 0:
+                    self.velocity[0] = -3.5
+                    self.velocity[1] = -2.5
+                    self.air_time = 5
+                    self.jumps = max(0, self.jumps - 1)
+                    return True
                 
         elif self.jumps:
             self.velocity[1] = -3
@@ -412,9 +470,10 @@ class Player(PhysicsEntity):
             return True
     
     def dash(self):
-        if not self.dashing:
-            self.game.sfx['dash'].play()
-            if self.flip:
-                self.dashing = -60
-            else:
-                self.dashing = 60
+        if self.abilities.dash_unlocked:
+            if not self.dashing:
+                self.game.sfx['dash'].play()
+                if self.flip:
+                    self.dashing = -60
+                else:
+                    self.dashing = 60

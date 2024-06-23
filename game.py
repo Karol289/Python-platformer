@@ -13,6 +13,7 @@ from scripts.tilemap import Tilemap
 from scripts.clouds import Clouds
 from scripts.particle import Particle
 from scripts.spark import Spark
+from scripts.items import DoubleJump, Dash, WallSlide, WallJump, TimeStop
 
 
 
@@ -21,8 +22,8 @@ class Game:
         pygame.init()
 
         pygame.display.set_caption('ninja game')
-       # self.screen = pygame.display.set_mode((640, 480))
-        self.screen = pygame.display.set_mode((1280, 960))
+        self.screen = pygame.display.set_mode((640, 480))
+       # self.screen = pygame.display.set_mode((1280, 960))
         self.display = pygame.Surface((320, 240))
 
         self.clock = pygame.time.Clock()
@@ -38,6 +39,11 @@ class Game:
             'player': load_image('entities/player.png'),
             'background': load_image('background.jpg'),
             'clouds': load_images('clouds'),
+            'items/doublejump' : Animation(load_images('items/doublejump'), img_dur=6),
+            'items/dash' : Animation(load_images('items/dash'), img_dur=6),
+            'items/wallslide' : Animation(load_images('items/wallslide'), img_dur=6),
+            'items/walljump' : Animation(load_images('items/walljump'), img_dur=6),
+            'items/timestop' : Animation(load_images('items/timestop'), img_dur=6),
             'enemy/idle' : Animation(load_images('entities/enemy/idle'), img_dur=6),
             'enemy/run' : Animation(load_images('entities/enemy/run'), img_dur=4),
             'slime/idle': Animation(load_images('entities/slime/idle'), img_dur=6),
@@ -105,6 +111,20 @@ class Game:
             if spawner['variant'] == 4:
                self.enemies.append(Spirit(self, spawner['pos'], (13, 18)))
         
+        self.items = []
+        for item in self.tilemap.extract([('items', 0), ('items', 1), ('items', 2), ('items', 3), ('items', 4)]):
+            if item['variant'] == 0:
+                self.items.append(DoubleJump(self, item['pos'], (16,16)))
+            if item['variant'] == 1:
+                self.items.append(Dash(self, item['pos'], (16,16)))
+            if item['variant'] == 2:
+                self.items.append(WallSlide(self, item['pos'], (16,16)))
+            if item['variant'] == 3:
+                self.items.append(WallJump(self, item['pos'], (16,16)))
+            if item['variant'] == 4:
+                self.items.append(TimeStop(self, item['pos'], (16,16)))
+                
+        
         self.projectiles = []
         self.particles = []
         self.sparks = []
@@ -117,6 +137,8 @@ class Game:
 
         self.time_stop = False
         self.time = 600
+        
+        self.player.abilities.reload()
 
     def play_music(self, music):
         pygame.mixer.music.load(music)
@@ -134,8 +156,6 @@ class Game:
         while True:
             self.display.blit(self.assets['background'], (0, 0))
 
-            
-
             self.screen_shake = max(0, self.screen_shake - 1)
 
             if not len(self.enemies):
@@ -146,17 +166,17 @@ class Game:
             if self.transition < 0:
                 self.transition += 1
 
-            if self.time_stop:
-                if self.time > 0:
-                    self.time -= 1
-                    if self.time < 50:
-                        pass
+            if self.player.abilities.time_stop_unlocked:
+                if self.time_stop:
+                    if self.time > 0:
+                        self.time -= 1
+                        if self.time < 50:
+                            pass
+                    else:
+                        self.time_stop = False
                 else:
-                    self.time_stop = False
-            else:
-                self.time = min(self.max_time, self.time + 0.5)
+                    self.time = min(self.max_time, self.time + 0.5)
 
-            print(self.time)
 
             if self.hit and not self.hit_guard:
                 
@@ -202,7 +222,9 @@ class Game:
                 enemy.render(self.display, offset = render_scroll)
                 if kill:
                     self.enemies.remove(enemy)
-               
+            
+            
+            
 
             self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
             self.player.render(self.display, offset=render_scroll)
@@ -229,6 +251,13 @@ class Game:
                 spark.render(self.display, render_scroll)
                 if kill:
                     self.sparks.remove(spark)
+                    
+            for item in self.items.copy():
+                destroy = item.update()
+                item.render(self.display, offset = render_scroll)
+                if destroy:
+                    print('jajo')
+                    self.items.remove(item)
 
             for particle in self.particles.copy():
                 kill = particle.update()
@@ -237,10 +266,10 @@ class Game:
                     particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
                 if kill:
                     self.particles.remove(particle)
-
-            pygame.draw.rect(self.display, "black", (1,1,104,12))
-            pygame.draw.rect(self.display, "red", (3,3,100,8))
-            pygame.draw.rect(self.display, "blue", (3,3,100 * (self.time/self.max_time),8))
+            if self.player.abilities.time_stop_unlocked:
+                pygame.draw.rect(self.display, "black", (1,1,104,12))
+                pygame.draw.rect(self.display, "red", (3,3,100,8))
+                pygame.draw.rect(self.display, "blue", (3,3,100 * (self.time/self.max_time),8))
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -258,7 +287,8 @@ class Game:
                     if event.key == pygame.K_LSHIFT:
                         self.player.dash()
                     if event.key == pygame.K_t:
-                        self.time_stop = not self.time_stop
+                        if self.player.abilities.time_stop_unlocked:
+                            self.time_stop = not self.time_stop
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_a:
                         self.movement[0] = False
