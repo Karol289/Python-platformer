@@ -113,3 +113,17 @@ class TimeStop(Item):
         super().update()
         if self.destroy:
             return True
+        
+class Gun(Item):
+    
+    def __init__(self,  game, pos, size):
+        super().__init__(game, 'gun', pos, size)
+    
+    def effect(self):
+        self.game.player.abilities.set_shoot_unlocked()
+        return True
+     
+    def update(self):
+        super().update()
+        if self.destroy:
+            return True

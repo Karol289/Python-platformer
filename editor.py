@@ -1,6 +1,7 @@
 import sys
 
 import pygame
+import asyncio
 
 from scripts.utils import  load_images
 from scripts.tilemap import Tilemap
@@ -13,7 +14,9 @@ class Editor:
 
         pygame.display.set_caption('editor')
 
-        self.map = 'data/maps/' + str(0) + '.json'
+        self.level = 0
+
+        self.map = 'data/maps/' + str(self.level) + '.json'
 
         self.screen = pygame.display.set_mode((640, 480))
         self.display = pygame.Surface((320, 240))
@@ -62,7 +65,7 @@ class Editor:
             
             render_scroll = (int(self.scroll[0]), int(self.scroll[1]))
             
-            self.tilemap.render(self.display, offset = render_scroll)
+            asyncio.run(self.tilemap.render(self.display, offset=render_scroll))
             
             
             current_tile_img = self.assets[self.tile_list[self.tile_group]][self.tile_variant].copy()
@@ -141,6 +144,13 @@ class Editor:
                         self.tilemap.save(self.map)
                     if event.key == pygame.K_t:
                         self.tilemap.autotile()
+                    if event.key == pygame.K_n:
+                        self.level += (self.level+1 % 3)
+                        self.map = 'data/maps/' + str(self.level) + '.json'
+                        try:
+                            self.tilemap.load(self.map)
+                        except FileNotFoundError:
+                            pass
                         
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_a:

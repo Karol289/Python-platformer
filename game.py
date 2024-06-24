@@ -4,8 +4,8 @@ import random
 import os
 
 import threading
-
 import pygame
+import asyncio
 
 from scripts.utils import load_image, load_images, Animation
 from scripts.entities import PhysicsEntity, Player, Gunman, Slime, Goblin, Spirit
@@ -13,7 +13,7 @@ from scripts.tilemap import Tilemap
 from scripts.clouds import Clouds
 from scripts.particle import Particle
 from scripts.spark import Spark
-from scripts.items import DoubleJump, Dash, WallSlide, WallJump, TimeStop
+from scripts.items import DoubleJump, Dash, WallSlide, WallJump, TimeStop, Gun
 
 
 
@@ -21,9 +21,9 @@ class Game:
     def __init__(self):
         pygame.init()
 
-        pygame.display.set_caption('ninja game')
-        self.screen = pygame.display.set_mode((640, 480))
-       # self.screen = pygame.display.set_mode((1280, 960))
+        pygame.display.set_caption('Pygame platformer')
+        #self.screen = pygame.display.set_mode((640, 480))
+        self.screen = pygame.display.set_mode((1280, 960))
         self.display = pygame.Surface((320, 240))
 
         self.clock = pygame.time.Clock()
@@ -44,6 +44,7 @@ class Game:
             'items/wallslide' : Animation(load_images('items/wallslide'), img_dur=6),
             'items/walljump' : Animation(load_images('items/walljump'), img_dur=6),
             'items/timestop' : Animation(load_images('items/timestop'), img_dur=6),
+            'items/gun' : Animation(load_images('items/gun'), img_dur=6),
             'enemy/idle' : Animation(load_images('entities/enemy/idle'), img_dur=6),
             'enemy/run' : Animation(load_images('entities/enemy/run'), img_dur=4),
             'slime/idle': Animation(load_images('entities/slime/idle'), img_dur=6),
@@ -81,7 +82,8 @@ class Game:
         self.player = Player(self, (50, 50), (8, 15))
         
         self.tilemap = Tilemap(self, tile_size=16)
-        self.level = 0
+        self.level = 1
+        
         self.load_level(self.level)
 
         self.screen_shake = 0
@@ -89,10 +91,14 @@ class Game:
         self.max_time = 600
         self.time = 600
         self.time_stop = False
+
+        self.game_run = True
         
         
     def load_level(self, map_id):
+
         self.tilemap.load('data/maps/' + str(map_id) + '.json')
+        
         self.leaf_spawners = []
         for tree in self.tilemap.extract([('large_decor', 2)], keep=True):
             self.leaf_spawners.append(pygame.Rect(4 + tree['pos'][0], 4 + tree['pos'][1], 23, 13))
@@ -112,7 +118,7 @@ class Game:
                self.enemies.append(Spirit(self, spawner['pos'], (13, 18)))
         
         self.items = []
-        for item in self.tilemap.extract([('items', 0), ('items', 1), ('items', 2), ('items', 3), ('items', 4)]):
+        for item in self.tilemap.extract([('items', 0), ('items', 1), ('items', 2), ('items', 3), ('items', 4), ('items', 5)]):
             if item['variant'] == 0:
                 self.items.append(DoubleJump(self, item['pos'], (16,16)))
             if item['variant'] == 1:
@@ -123,8 +129,11 @@ class Game:
                 self.items.append(WallJump(self, item['pos'], (16,16)))
             if item['variant'] == 4:
                 self.items.append(TimeStop(self, item['pos'], (16,16)))
+            if item['variant'] == 5:
+                self.items.append(Gun(self, item['pos'], (16,16)))
                 
         
+
         self.projectiles = []
         self.particles = []
         self.sparks = []
@@ -145,6 +154,8 @@ class Game:
         pygame.mixer.music.set_volume(0.5)
         pygame.mixer.music.play(-1)
     
+            
+    
         
     def run(self):
         
@@ -153,7 +164,7 @@ class Game:
 
         self.sfx['ambience'].play(-1)
 
-        while True:
+        while self.game_run:
             self.display.blit(self.assets['background'], (0, 0))
 
             self.screen_shake = max(0, self.screen_shake - 1)
@@ -215,7 +226,7 @@ class Game:
                 self.clouds.update()
             self.clouds.render(self.display, offset=render_scroll)
             
-            self.tilemap.render(self.display, offset=render_scroll)
+            asyncio.run(self.tilemap.render(self.display, offset=render_scroll))
             
             for enemy in self.enemies.copy():
                 kill = enemy.update(self.tilemap, (0,0 ))
@@ -242,9 +253,10 @@ class Game:
                 elif projectile[2] > 360:
                     self.projectiles.remove(projectile)
                 elif abs(self.player.dashing) < 50:
-                    if self.player.rect().collidepoint(projectile[0]):
-                        self.projectiles.remove(projectile)
-                        self.hit = True
+                    if projectile[3] == 0:
+                        if self.player.rect().collidepoint(projectile[0]):
+                            self.projectiles.remove(projectile)
+                            self.hit = True
                        
             for spark in self.sparks.copy():
                 kill = spark.update()
@@ -273,6 +285,7 @@ class Game:
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    self.game_run = False
                     thread.join()
                     pygame.quit()
                     sys.exit()
@@ -286,6 +299,8 @@ class Game:
                             self.sfx['jump'].play()
                     if event.key == pygame.K_LSHIFT:
                         self.player.dash()
+                    if event.key == pygame.K_j:
+                        self.player.shoot()
                     if event.key == pygame.K_t:
                         if self.player.abilities.time_stop_unlocked:
                             self.time_stop = not self.time_stop
